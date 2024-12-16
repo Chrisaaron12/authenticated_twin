@@ -1,0 +1,91 @@
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator, noise
+from qiskit.quantum_info import random_unitary, Operator
+import numpy as np
+
+# Parameters: Number of qubits for the MB-QPUF
+num_qubits = 2  # Removed auxiliary qubit
+
+# Generate two random Haar unitary matrices with power 1
+unitary = Operator(random_unitary(2, seed=42).power(1))
+new_unitary = Operator(random_unitary(2, seed=24).power(1))
+
+# Display the unitary matrices
+print("Matrix of U:")
+print(unitary.data)
+print("Matrix of New U:")
+print(new_unitary.data)
+
+# Create the QuantumCircuit
+qc = QuantumCircuit(num_qubits, 2)
+
+# Initialize the first qubit in the |+> state
+qc.h(0)
+
+# Create entanglement using CNOT
+qc.cx(0, 1)
+
+# Apply unitary only to q_1
+qc.append(unitary.to_instruction(), [1])
+
+# Apply the new unitary to q_1
+# qc.append(new_unitary.to_instruction(), [1])
+qc.append(unitary.to_instruction(), [1])
+
+# Measure q_0 and q_1
+qc.measure(0, 0)
+qc.measure(1, 1)
+
+# Display the circuit
+print("Quantum Circuit for Measurement-Based QPUF:")
+print(qc)
+
+# Add a noise model
+error_rate = 0.01  # Error probability
+noise_model = noise.NoiseModel()
+
+depolarizing_error_1q = noise.depolarizing_error(error_rate, 1)
+deploarizing_error_2q = noise.depolarizing_error(error_rate, 2)
+
+noise_model.add_all_qubit_quantum_error(depolarizing_error_1q, ['h'])
+noise_model.add_all_qubit_quantum_error(depolarizing_error_2q, ['cx'])
+
+# Simulate the circuit with noise
+simulator = AerSimulator(noise_model=noise_model)
+result = simulator.run(qc, shots=100000).result()
+counts = result.get_counts()
+
+# Display the measurement results
+print("Measurement Results with Noise:")
+print(counts)
+
+# Count the number of equal and unequal results between '11' and '00'
+equal_count = min(counts.get('11', 0), counts.get('00', 0))
+unequal_count = abs(counts.get('11', 0) - counts.get('00', 0))
+
+# Display the comparison results
+print("Number of Equal Results Between '11' and '00':")
+print(equal_count)
+print("Number of Unequal Results Between '11' and '00':")
+print(unequal_count)
+
+# Apply the matrix of U to the measured states of q_0
+unitary_matrix = unitary.data
+measured_q0 = np.array([[counts.get('00', 0)], [counts.get('10', 0)]])
+transformed_q0 = unitary_matrix @ measured_q0
+
+# Display the transformed measurement of q_0
+print("Transformed Measurement of q_0 (After Applying U):")
+print(transformed_q0)
+
+# Apply the matrix of U to the states '00' and '01'
+input_states = np.array([[counts.get('00', 0)], [counts.get('01', 0)]])
+transformed_states = unitary_matrix @ input_states
+
+# Display the transformed states
+print("Transformed States (After Applying U to '00' and '01'):")
+print(transformed_states)
+
+# Display the magnitudes of the transformed states
+print("Magnitudes of Transformed States:")
+print(np.abs(transformed_states))
