@@ -1,0 +1,49 @@
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator, noise
+from qiskit.quantum_info import random_unitary
+import numpy as np
+
+# Parameters: Number of qubits for the MB-QPUF
+num_qubits = 2
+
+# Generate a random Haar unitary matrix with power 1
+unitary = random_unitary(2**num_qubits, seed=42).power(1).to_instruction() # fix the seed ___ adn try it with an other seed
+
+# Create the QuantumCircuit
+qc = QuantumCircuit(num_qubits, num_qubits)
+
+# Initialize the first qubit in the |+> state
+qc.h(0)
+
+# Create entanglement using CNOT
+qc.cx(0, 1)
+
+# Apply a Haar-randomized measurement (simulated by U and U^†)
+qc.append(unitary, range(num_qubits))
+qc.append(unitary.inverse(), range(num_qubits))
+
+# Measure the qubits in the computational basis
+qc.measure(range(num_qubits), range(num_qubits))
+
+# Display the circuit
+print("Quantum Circuit for Measurement-Based QPUF:")
+print(qc)
+
+# Add a noise model
+error_rate = 0.01  # Error probability
+noise_model = noise.NoiseModel()
+
+depolarizing_error_1q = noise.depolarizing_error(error_rate, 1)
+depolarizing_error_2q = noise.depolarizing_error(error_rate, 2)
+
+noise_model.add_all_qubit_quantum_error(depolarizing_error_1q, ['h'])
+noise_model.add_all_qubit_quantum_error(depolarizing_error_2q, ['cx'])
+
+# Simulate the circuit with noise
+simulator = AerSimulator(noise_model=noise_model)
+result = simulator.run(qc, shots=1024).result()
+counts = result.get_counts()
+
+# Display the results
+print("Measurement Results with Noise:")
+print(counts)
